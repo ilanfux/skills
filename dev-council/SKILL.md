@@ -128,18 +128,22 @@ Each is a thinking lens, not a job title, chosen to create deliberate tension so
 
 ## Execution backend: the `council` CLI (preferred when installed)
 
-If the standalone `council` runner is installed (the `council` command resolves on PATH), use it as the execution backend for dispatch, peer review, and Chairman synthesis. It runs each persona as its **own agent on a different model** — the per-persona model diversity the internal `Task` tool can't guarantee — keeps every advisor reading the real repo (so findings cite `file:line`), and meters spend for budget control.
+If the standalone `council` runner is installed, use it as the execution backend for dispatch, peer review, and Chairman synthesis. It runs each persona as its **own agent on a different model** — the per-persona model diversity the internal `Task` tool can't guarantee — keeps every advisor reading the real repo (so findings cite `file:line`), and meters spend for budget control.
+
+**Detect it (do this first, do NOT rely only on the bare `council` command):** run `python -m council --version`. If that prints a version, the runner is installed — invoke it with **`python -m council ...`**. The bare `council` command often fails inside an editor session even when installed, because the editor process captured a stale PATH before the CLI was added (a restart would fix PATH, but `python -m council` works without one). Only fall back to the internal `Task` flow if `python -m council --version` itself fails (non-zero exit / `No module named council`).
+
+> Throughout this section, `python -m council` is the canonical invocation. `council` (the console script) is an equivalent shortcut **only** when it resolves on PATH. If `python` isn't the right interpreter, try `py -m council` or the project's interpreter.
 
 Flow when the CLI is present:
 
 1. You still do **Step 1 (frame)** and the **Step 2 triage** (decide mode, stakes tier, and which personas to convene).
 2. Write the framed brief to a file, then invoke:
-   `council run --mode <plan|review> --stakes <standard|risky> --cwd <repo> --brief-file <brief> [--roster k1,k2,...]`
+   `python -m council run --mode <plan|review> --stakes <standard|risky> --cwd <repo> --brief-file <brief> [--roster k1,k2,...]`
    - Map triage to `--stakes risky` for production-facing gates (full diverse roster + peer review) or `--stakes standard` for everyday changes (core roster, cheaper models, no peer review). Pass `--roster` (persona keys) to force a specific set; omit it to let the tier choose.
 3. The CLI performs **Step 3 (anonymized peer review)** and **Step 4 (Chairman synthesis)** internally and returns the finished verdict markdown.
 4. Present that verdict for **Step 5**. You may tighten presentation, but the CLI's evidence-grounded synthesis is authoritative.
 
-Run `council models` once to confirm Claude/Gemini are available for your key; the CLI auto-falls-back any unavailable model to a configured default. Use `council usage` to watch spend against the soft budget ceiling, and `council backends` to see which execution backends are configured and whether their credentials are set.
+Run `python -m council models` once to confirm Claude/Gemini are available for your key; the CLI auto-falls-back any unavailable model to a configured default. Use `python -m council usage` to watch spend against the soft budget ceiling, and `python -m council backends` to see which execution backends are configured and whether their credentials are set.
 
 **Backends (per-persona model execution).** By default every persona runs on the `cursor` backend — a grounded local agent that reads the repo and cites `file:line`. The CLI also supports provider backends (`openai`, which also covers AutoX/OpenAI-compatible gateways, plus `anthropic` and `google`) selectable per persona, so a single council can run a hybrid (e.g. GPT personas on AutoX, Claude/Gemini on Cursor). Provider backends can't browse the repo, so the tool injects a repo-context snapshot into their prompts. Keep high-value lenses on `cursor` when you can.
 
@@ -147,7 +151,7 @@ Run `council models` once to confirm Claude/Gemini are available for your key; t
 
 For setup, prerequisites, backends, and the AutoX hybrid, see the runner's `GUIDE.md` (in the `dev-council-runner` project, mirrored here under `runner/`).
 
-If the `council` command is **not** installed, fall back to the internal `Task`-based flow described below.
+If `python -m council --version` fails (the runner is genuinely not installed), fall back to the internal `Task`-based flow described below.
 
 ---
 
@@ -183,7 +187,7 @@ If too vague to frame ("council my service"), ask exactly one clarifying questio
 
 ### Step 2: Triage + convene (parallel sub-agents)
 
-> If the `council` CLI is installed, do the triage below to decide the roster and stakes, then hand off execution to it (see "Execution backend" above) instead of spawning `Task` sub-agents. The rest of this step (and Steps 3-4) is the fallback flow for when the CLI is absent.
+> If the `council` CLI is installed (detect with `python -m council --version`), do the triage below to decide the roster and stakes, then hand off execution to it via `python -m council run ...` (see "Execution backend" above) instead of spawning `Task` sub-agents. The rest of this step (and Steps 3-4) is the fallback flow for when the CLI is absent.
 
 Run the **core** advisors for the mode. Then add each **specialist** whose trigger fires:
 
