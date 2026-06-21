@@ -46,6 +46,10 @@ class Config:
     chairman_params: Dict[str, str] = field(default_factory=dict)
     chairman_backend: str = "cursor"
     peer_review_backend: str = "cursor"
+    # Optional per-family override of the peer-review backend, so cross-family
+    # reviewers run on the right provider (e.g. {anthropic: anthropic, google: google})
+    # for a no-Cursor multi-provider setup. Families not listed use peer_review_backend.
+    peer_review_backends: Dict[str, str] = field(default_factory=dict)
     backends: Dict[str, dict] = field(default_factory=dict)
     budget: Dict[str, float] = field(default_factory=dict)
     model_warnings: List[str] = field(default_factory=list)
@@ -134,6 +138,10 @@ def load_config() -> Config:
         chairman_params={str(k): str(v) for k, v in (personas_raw.get("chairman_params") or {}).items()},
         chairman_backend=str(personas_raw.get("chairman_backend", "cursor")).strip().lower() or "cursor",
         peer_review_backend=str(personas_raw.get("peer_review_backend", "cursor")).strip().lower() or "cursor",
+        peer_review_backends={
+            str(k).lower(): str(v).strip().lower()
+            for k, v in (personas_raw.get("peer_review_backends") or {}).items()
+        },
         backends={str(k).lower(): dict(v or {}) for k, v in (backends_raw.get("backends") or {}).items()},
         budget=dict(tiers_raw.get("budget") or {}),
     )
@@ -169,11 +177,12 @@ def resolve_models(config: Config, available: List[str]) -> Config:
             config.chairman_params = {}  # params are family-specific; drop on fallback
         config.chairman_model = resolved_chairman
 
-    if config.peer_review_backend == "cursor":
-        config.peer_review_pool = {
-            family: resolve(model_id, f"peer_review_pool[{family}]")
-            for family, model_id in config.peer_review_pool.items()
-        }
+    resolved_pool: Dict[str, str] = {}
+    for family, model_id in config.peer_review_pool.items():
+        backend = config.peer_review_backends.get(family, config.peer_review_backend)
+        # Only validate/fallback cursor-backed pool models against the Cursor catalog.
+        resolved_pool[family] = resolve(model_id, f"peer_review_pool[{family}]") if backend == "cursor" else model_id
+    config.peer_review_pool = resolved_pool
 
     for mode, persona_map in config.personas.items():
         for key, persona in persona_map.items():

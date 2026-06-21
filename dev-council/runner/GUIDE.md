@@ -91,6 +91,13 @@ strong "thinking" models; light lenses get cheaper/faster ones) and **diversity*
 (roles spread across model families so they don't share blind spots). Heavy
 personas run at high reasoning effort.
 
+At the **`risky`** tier, REVIEW convenes a **second Bug Hunter on a different model
+family** ("Bug Hunter — Deep Reasoning", Claude Opus) alongside the primary
+(Codex) one. Bug-finding is the highest-value lens and the one where models
+disagree most, so two independent hunts de-correlate blind spots; when both flag
+the same issue the Chairman can treat it as high-confidence. This pair runs only
+at `risky` — `standard` keeps a single Bug Hunter to stay lean.
+
 ---
 
 ## 5. Prerequisites
@@ -142,6 +149,34 @@ repo-context snapshot (the diff under review, or a file listing) into their
 prompt. That is lower-fidelity than a browsing agent — keep your highest-value
 lenses on `cursor` when you can.
 
+### Choosing how it runs (decision tree)
+
+1. **`python -m council --version` works → use the CLI** (real per-persona models):
+   - **Cursor key set** → default `cursor` backend (GPT + Claude + Gemini from one
+     key, grounded). Best path.
+   - **No Cursor key, provider keys set** → provider backends (see below).
+2. **CLI not installed, inside Cursor** → the skill falls back to internal `Task`
+   sub-agents (single model — the limitation this tool removes).
+
+Always preview with `--dry-run` (see §7) to see the resolved plan and which keys
+are missing before running.
+
+### Running without Cursor (a token per model)
+
+If you don't have a Cursor key, run entirely on provider keys. Two ready-made
+overrides ship under `examples/` — copy one to `~/.dev-council/personas.yaml`
+(it deep-merges over the defaults) and edit the model ids to match your account:
+
+- **`examples/personas.providers.yaml`** — token-per-family, no Cursor at all.
+  Set `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GOOGLE_API_KEY` for the families
+  you use, `pip install 'dev-council-runner[all]'`, then `--dry-run` to confirm.
+  Cross-family peer review works via per-family `peer_review_backends`.
+- **`examples/personas.autox-hybrid.yaml`** — GPT personas on AutoX, Claude/Gemini
+  on Cursor (needs both `CURSOR_API_KEY` and `AUTOX_API_KEY`/`AUTOX_BASE_URL`).
+
+> Diversity needs at least two providers. With a single provider key every persona
+> collapses onto one family — one blind spot — which defeats the council.
+
 ### Recommended: the AutoX hybrid
 
 Because `backend` is **per-persona**, you can mix backends in one council. If you
@@ -170,10 +205,17 @@ CLI."*
 ```bash
 council run   --mode review --stakes risky --cwd . --brief "Review my auth changes"
 council run   --mode plan   --stakes standard --cwd . --brief-file design.md
+council run   ... --dry-run      # preview the plan (personas, backends, models, readiness) WITHOUT running
+council run   ... --dry-run --json   # same, machine-readable
 council models     # which Cursor models your key can use + per-persona resolution
 council backends   # which backends are configured and whether their keys are set
 council usage      # runs this month vs the soft budget ceiling, by model/backend
 ```
+
+**Always preview first.** `--dry-run` resolves the roster, per-persona backend +
+model, peer-review/chairman backends, and a **READY / NOT READY** status per
+backend, then exits without spending anything. Use it to confirm the run is
+multi-model and to see exactly which key/package to supply if it's blocked.
 
 Useful `run` flags: `--stakes trivial|standard|risky`, `--roster k1,k2,...`
 (force specific personas), `--brief` / `--brief-file` / stdin, `--diff-scope`,

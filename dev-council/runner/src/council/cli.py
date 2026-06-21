@@ -23,7 +23,7 @@ from council.backends import BackendError, BackendRegistry
 from council.config_loader import load_config, resolve_models, select_personas, validate_model_params
 from council.input import CouncilInput
 from council.metering import USAGE_LOG_PATH, summarize
-from council.runner import run_council
+from council.runner import CouncilPlan, plan_council, run_council
 from council.sdk_client import SdkUnavailableError, discover_models
 
 
@@ -62,6 +62,8 @@ def _build_parser() -> argparse.ArgumentParser:
     run_p.add_argument("--forward-db", action="store_true", help="Also forward metering rows to the FIT activity DB.")
     run_p.add_argument("--seed", type=int, help="Deterministic anonymization seed (testing).")
     run_p.add_argument("--out", help="Write verdict markdown to this file instead of stdout.")
+    run_p.add_argument("--dry-run", action="store_true", help="Print the execution plan (personas, backends, models, credential readiness) without running.")
+    run_p.add_argument("--json", action="store_true", help="With --dry-run, emit the plan as JSON.")
     run_p.set_defaults(handler=_cmd_run)
 
     usage_p = sub.add_parser("usage", help="Summarize usage and check the budget ceiling.")
@@ -105,6 +107,9 @@ def _cmd_run(args) -> int:
         peer_review_override=args.peer_review,
         diff_scope=args.diff_scope,
     )
+    if getattr(args, "dry_run", False):
+        return _emit_plan(plan_council(council_input), as_json=getattr(args, "json", False))
+
     _interactive_credential_check(council_input)
     result = run_council(council_input, forward_db=args.forward_db, seed=args.seed)
 
@@ -114,6 +119,50 @@ def _cmd_run(args) -> int:
     else:
         print(result.markdown)
     return 0 if result.convened else 0
+
+
+def _emit_plan(plan: CouncilPlan, as_json: bool = False) -> int:
+    if as_json:
+        payload = {
+            "mode": plan.mode,
+            "stakes": plan.stakes,
+            "convened": plan.convened,
+            "ready": plan.ready,
+            "peer_review": plan.peer_review,
+            "peer_review_backend": plan.peer_review_backend,
+            "advisors": [vars(a) for a in plan.advisors],
+            "chairman": vars(plan.chairman) if plan.chairman else None,
+            "skipped": plan.skipped,
+            "backend_status": {k: (v or "ready") for k, v in plan.backend_status.items()},
+            "blocking_reasons": plan.blocking_reasons,
+        }
+        print(json.dumps(payload, indent=2))
+        return 0 if plan.ready else 1
+
+    print(f"Execution plan - mode={plan.mode.upper()}, stakes={plan.stakes}")
+    if not plan.convened:
+        print("  Council would NOT convene at this tier (raise --stakes to convene).")
+        return 0
+
+    print("  Backend readiness:")
+    for name, reason in sorted(plan.backend_status.items()):
+        print(f"    {name:10}: {'READY' if reason is None else 'NOT READY - ' + reason}")
+
+    print("  Advisors:")
+    for a in plan.advisors:
+        flag = "" if plan.backend_status.get(a.backend) is None else "  <-- backend NOT READY"
+        print(f"    {a.title:34} {a.backend:9} {a.model}{flag}")
+    print(f"  Peer review: {'yes' if plan.peer_review else 'no'} (backend: {plan.peer_review_backend})")
+    if plan.chairman:
+        print(f"  Chairman: {plan.chairman.backend} {plan.chairman.model}")
+    if plan.skipped:
+        print(f"  Skipped personas: {', '.join(plan.skipped)}")
+
+    if plan.ready:
+        print("  Overall: READY")
+        return 0
+    print("  Overall: BLOCKED - resolve: " + "; ".join(plan.blocking_reasons))
+    return 1
 
 
 def _persist_user_env(var: str, value: str) -> bool:

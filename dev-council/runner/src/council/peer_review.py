@@ -9,11 +9,12 @@ dominant finding. Reviewers run concurrently under one async bridge.
 from __future__ import annotations
 
 import random
+from collections import defaultdict
 from string import ascii_uppercase
 from typing import Dict, List, Optional
 
 from council.backends import BackendRegistry, BackendTask
-from council.input import AdvisorResult, PeerReviewResult
+from council.input import AdvisorResult, AgentOutcome, PeerReviewResult
 from council.metering import MeteringSink
 from council.prompts import build_peer_review_prompt
 
@@ -41,6 +42,12 @@ def _pick_reviewer_model(advisor_family: str, pool: Dict[str, str], default_mode
     return default_model, advisor_family
 
 
+def reviewer_backend_for(family: str, peer_review_backends: Dict[str, str], default_backend: str) -> str:
+    """Backend a reviewer of `family` runs on (per-family override, else default)."""
+
+    return (peer_review_backends or {}).get(family, default_backend)
+
+
 def run_peer_review(
     advisors: List[AdvisorResult],
     brief: str,
@@ -51,6 +58,7 @@ def run_peer_review(
     meter: MeteringSink,
     registry: BackendRegistry,
     peer_review_backend: str = "cursor",
+    peer_review_backends: Optional[Dict[str, str]] = None,
     rng: Optional[random.Random] = None,
 ) -> List[PeerReviewResult]:
     anonymized = anonymize(advisors, rng=rng)
@@ -61,22 +69,29 @@ def run_peer_review(
     anonymized_text = {letter: advisor.outcome.text.strip() for letter, advisor in anonymized.items()}
     prompt = build_peer_review_prompt(brief, mode, anonymized_text)
 
-    # One reviewer per advisor, each on a family different from that advisor.
-    review_specs = []
+    # One reviewer per advisor, each on a family — and thus a backend — different
+    # from that advisor, so cross-family review works even across providers.
+    review_specs = []  # (reviewer_for_key, model, family, backend)
     for advisor in anonymized.values():
         model, family = _pick_reviewer_model(advisor.persona.family, peer_review_pool, default_model)
-        review_specs.append((advisor.persona.key, model, family))
+        backend_name = reviewer_backend_for(family, peer_review_backends or {}, peer_review_backend)
+        review_specs.append((advisor.persona.key, model, family, backend_name))
 
-    backend = registry.get(peer_review_backend)
-    tasks = [
-        BackendTask(task_id=reviewer_for_key, prompt=prompt, model=model)
-        for (reviewer_for_key, model, _family) in review_specs
-    ]
-    outcomes = backend.run_batch(tasks, cwd=cwd)
+    tasks_by_backend: Dict[str, List[BackendTask]] = defaultdict(list)
+    for (reviewer_for_key, model, _family, backend_name) in review_specs:
+        tasks_by_backend[backend_name].append(BackendTask(task_id=reviewer_for_key, prompt=prompt, model=model))
+
+    outcomes_by_key: Dict[str, AgentOutcome] = {}
+    for backend_name, tasks in tasks_by_backend.items():
+        for task, outcome in zip(tasks, registry.get(backend_name).run_batch(tasks, cwd=cwd)):
+            outcomes_by_key[task.task_id] = outcome
 
     results: List[PeerReviewResult] = []
-    for (reviewer_for_key, model, family), outcome in zip(review_specs, outcomes):
-        meter.record("peer", reviewer_for_key, model, family, outcome, backend=peer_review_backend)
+    for (reviewer_for_key, model, family, backend_name) in review_specs:
+        outcome = outcomes_by_key.get(
+            reviewer_for_key, AgentOutcome(status="error", text="", error_message="no outcome returned")
+        )
+        meter.record("peer", reviewer_for_key, model, family, outcome, backend=backend_name)
         results.append(
             PeerReviewResult(
                 reviewer_for_key=reviewer_for_key,

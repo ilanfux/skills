@@ -1,0 +1,53 @@
+# ── Hybrid override: GPT personas on AutoX, Claude/Gemini on Cursor ──────────
+#
+# Copy to ~/.dev-council/personas.yaml (it DEEP-MERGES over the shipped defaults,
+# so you only specify what changes). This keeps cross-family diversity — Claude
+# and Gemini advisors stay on the grounded Cursor backend — while routing the
+# GPT/Codex advisors to your AutoX quota.
+#
+# Prerequisites:
+#   - CURSOR_API_KEY set (for the Claude/Gemini/Composer personas + chairman + peer review)
+#   - AUTOX_API_KEY and AUTOX_BASE_URL set (the `autox` backend is defined in backends.yaml)
+#   - the model ids below must be GPT models your AutoX gateway actually serves —
+#     edit them to match (run nothing blindly).
+#
+# Verify before running:  python -m council run --mode review --stakes risky --cwd . --brief x --dry-run
+
+review:
+  bug_hunter:
+    backend: autox
+    model: gpt-4o          # ← set to the strongest GPT model your AutoX serves
+  test_reviewer:
+    backend: autox
+    model: gpt-4o
+  standards_compliance:
+    backend: autox
+    model: gpt-4o
+  data_dba:
+    backend: autox
+    model: gpt-4o
+  # bug_hunter_deep (Opus), security (Opus), api_compat (Sonnet), performance
+  # (Gemini), maintainability (Composer) intentionally stay on the Cursor backend.
+
+plan:
+  product_manager:
+    backend: autox
+    model: gpt-4o
+  long_term:
+    backend: autox
+    model: gpt-4o
+  ux:
+    backend: autox
+    model: gpt-4o
+  sre:
+    backend: autox
+    model: gpt-4o
+  data_dba:
+    backend: autox
+    model: gpt-4o
+  qa:
+    backend: autox
+    model: gpt-4o
+
+# Chairman and peer review stay on Cursor (the default) — the Cursor backend
+# serves every family, so anonymized cross-family peer review still works.

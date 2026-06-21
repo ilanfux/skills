@@ -1,0 +1,60 @@
+# ── Provider-only override: NO Cursor, a token per model family ──────────────
+#
+# Use this when you do NOT have a Cursor key and want to run the council on your
+# own provider API keys. Copy to ~/.dev-council/personas.yaml (DEEP-MERGES over
+# the defaults). Every convened persona, the chairman, and peer review are routed
+# to a provider backend, so no CURSOR_API_KEY is needed.
+#
+# Prerequisites (set the env vars for the providers you actually use):
+#   - OPENAI_API_KEY      (+ optional OPENAI_BASE_URL)   → `openai` backend
+#   - ANTHROPIC_API_KEY                                   → `anthropic` backend
+#   - GOOGLE_API_KEY (or GEMINI_API_KEY)                  → `google` backend
+#   - install the SDKs:  pip install 'dev-council-runner[all]'
+#
+# IMPORTANT: the model ids below are EXAMPLES. Replace each with an id your
+# account actually exposes. Provider backends can't browse the repo, so advisors
+# receive an injected diff/context snapshot (lower-fidelity grounding than Cursor).
+#
+# Diversity note: real cross-family value needs at least two providers. With only
+# one provider key, every persona collapses onto one family (one blind spot).
+#
+# Verify before running:  python -m council run --mode review --stakes risky --cwd . --brief x --dry-run
+
+default_model: gpt-4o            # safe fallback (must be a real id you can use)
+chairman_backend: openai
+chairman_model: gpt-4o
+
+# Peer reviewers run cross-family; map each family to its provider backend so a
+# reviewer picked from another family runs on the right provider.
+peer_review_backend: openai
+peer_review_backends:
+  openai: openai
+  anthropic: anthropic
+  google: google
+peer_review_pool:
+  openai: gpt-4o
+  anthropic: claude-3-5-sonnet-latest
+  google: gemini-1.5-pro
+
+review:
+  bug_hunter:        { backend: openai,    model: gpt-4o }
+  bug_hunter_deep:   { backend: anthropic, model: claude-3-opus-latest }
+  maintainability:   { backend: openai,    model: gpt-4o-mini, family: openai }
+  test_reviewer:     { backend: openai,    model: gpt-4o }
+  standards_compliance: { backend: openai, model: gpt-4o }
+  security:          { backend: anthropic, model: claude-3-opus-latest }
+  performance:       { backend: google,    model: gemini-1.5-pro }
+  api_compat:        { backend: anthropic, model: claude-3-5-sonnet-latest }
+  data_dba:          { backend: openai,    model: gpt-4o }
+
+plan:
+  product_manager:   { backend: openai,    model: gpt-4o-mini }
+  architect:         { backend: anthropic, model: claude-3-opus-latest }
+  pragmatist:        { backend: openai,    model: gpt-4o-mini, family: openai }
+  long_term:         { backend: openai,    model: gpt-4o }
+  ux:                { backend: openai,    model: gpt-4o-mini }
+  security_threat:   { backend: anthropic, model: claude-3-opus-latest }
+  performance_scalability: { backend: google, model: gemini-1.5-pro }
+  sre:               { backend: openai,    model: gpt-4o }
+  data_dba:          { backend: openai,    model: gpt-4o }
+  qa:                { backend: openai,    model: gpt-4o }

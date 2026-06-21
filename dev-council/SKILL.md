@@ -145,9 +145,20 @@ Flow when the CLI is present:
 
 Run `python -m council models` once to confirm Claude/Gemini are available for your key; the CLI auto-falls-back any unavailable model to a configured default. Use `python -m council usage` to watch spend against the soft budget ceiling, and `python -m council backends` to see which execution backends are configured and whether their credentials are set.
 
-**Backends (per-persona model execution).** By default every persona runs on the `cursor` backend — a grounded local agent that reads the repo and cites `file:line`. The CLI also supports provider backends (`openai`, which also covers AutoX/OpenAI-compatible gateways, plus `anthropic` and `google`) selectable per persona, so a single council can run a hybrid (e.g. GPT personas on AutoX, Claude/Gemini on Cursor). Provider backends can't browse the repo, so the tool injects a repo-context snapshot into their prompts. Keep high-value lenses on `cursor` when you can.
+**Backends (per-persona model execution).** By default every persona runs on the `cursor` backend — a grounded local agent that reads the repo and cites `file:line`. The CLI also supports provider backends (`openai`, which also covers AutoX/OpenAI-compatible gateways, plus `anthropic` and `google`) selectable per persona, so a single council can run a hybrid. Provider backends can't browse the repo, so the tool injects a repo-context snapshot into their prompts. Keep high-value lenses on `cursor` when you can.
 
-**Missing credentials.** Credentials come from environment variables only — never write a key into a file or the repo. If the CLI reports that a backend is "not ready" / a key is missing, **ask the user for the key and set it in the environment** (e.g. `CURSOR_API_KEY`), then retry; the CLI run itself will also prompt for a missing key when run interactively.
+**How to choose the execution path (decision tree):**
+
+1. **`python -m council --version` works → use the CLI** (true per-persona multi-model). Then check what's configured (next bullet) and pick the backend story:
+   - **Cursor key available** (`CURSOR_API_KEY`) → the default `cursor` backend gives GPT + Claude + Gemini from one key, grounded. This is the best path.
+   - **No Cursor key, but provider keys available** → run on provider backends. The user copies an override into `~/.dev-council/personas.yaml` (ship-with examples: `personas.autox-hybrid.yaml` for GPT-on-AutoX + Claude/Gemini-on-Cursor, or `personas.providers.yaml` for a token-per-family, no-Cursor setup).
+2. **CLI not installed, but you're inside Cursor → internal `Task` sub-agents** (the fallback flow below). Note this can't guarantee per-persona models.
+
+**Before you run: announce the plan, then ask for anything missing.** When using the CLI, FIRST run a dry run to see the resolved plan and credential readiness, present it to the user, and only then execute:
+
+`python -m council run --mode <plan|review> --stakes <tier> --cwd <repo> --brief-file <brief> --dry-run`
+
+This prints each persona's backend + model, peer-review/chairman backends, and per-backend **READY / NOT READY** status (add `--json` for a machine-readable plan). Tell the user in one or two lines *how it will run* (e.g. "8 advisors across Codex/Opus/Gemini/Composer on Cursor, peer review + GPT-5.5 chairman"). If the plan is **BLOCKED** (a needed key/package is missing), **ask the user for the missing key and set it in the environment** (never write it to a file), or install the missing extra, then re-check and run. The live run also prompts for a missing key when interactive.
 
 For setup, prerequisites, backends, and the AutoX hybrid, see the runner's `GUIDE.md` (in the `dev-council-runner` project, mirrored here under `runner/`).
 
