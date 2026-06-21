@@ -1,0 +1,29 @@
+# Secrets — never commit credentials
+.env
+.env.*
+*.key
+*.pem
+credentials*.json
+secrets*.yaml
+
+# Local council state (usage log lives in ~/.dev-council, but guard the cwd too)
+.dev-council/
+usage.jsonl
+
+# Test/scratch artifacts
+run_regression.txt
+brief_tmp.md
+brief.md
+
+# Python build / cache
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/

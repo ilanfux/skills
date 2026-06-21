@@ -1,0 +1,31 @@
+# Stakes tiers control how much council (and therefore how much budget) a run
+# spends. The diverse, expensive roster only runs at "risky".
+
+# Soft monthly ceiling for the budget alarm, expressed as a number of agent
+# runs (advisors + peer reviewers + chairman) per calendar month. `council
+# usage` warns once usage crosses warn_fraction of this number. Tune to your
+# Cursor per-user cap once you have a feel for it.
+budget:
+  monthly_agent_run_ceiling: 600
+  warn_fraction: 0.6
+
+tiers:
+  trivial:
+    description: One-line fixes and pure lookups. The tool refuses to convene.
+    convene: false
+
+  standard:
+    description: Everyday changes. Core roster only, no peer review, cheaper models.
+    convene: true
+    roster: core            # core personas for the mode only
+    peer_review: false
+    # Downgrade heavy personas to a cheaper model at this tier to save budget.
+    downgrade_heavy: true
+    downgrade_model: gpt-5.4
+
+  risky:
+    description: Production-facing gates, auth, money, migrations. Full diverse roster + peer review.
+    convene: true
+    roster: full            # core + triaged specialists
+    peer_review: true
+    downgrade_heavy: false

@@ -19,6 +19,16 @@ This council reviews engineering work, not marketing copy. An advisor's claim is
 - "This might have a bug" is rejected. "In `OrderService.create()` line 84 the `null` branch is unhandled, so X input throws NPE" is accepted.
 - All council sub-agents run `readonly: true`. They analyze; they never edit.
 
+## The second rule: respect the project's rules and intentional decisions
+
+A finding is only useful if it accounts for what the team has **already decided**. The council catches real problems — it does not relitigate settled policy or flag deliberate choices as bugs. (This is the rule that stops the council from "discovering" things the team did on purpose.)
+
+- **Before reviewing, load the project's rules + contracts** and put them in the brief (see Step 1). Sources, in priority order:
+  - `.cursor/rules/*.mdc`, `AGENTS.md` / `CLAUDE.md` — explicit engineering rules.
+  - `README`, `RUNBOOK`s, design docs — stated conventions and operating decisions.
+  - **`.gitignore` / config comments that mark something "intentional", "deliberate", or "local-only"** — these encode team **contracts** (e.g. *"tests stay local, verified manually"*). A documented deliberate exclusion is NOT a defect.
+- **Every advisor must check a candidate finding against these before raising it.** If the thing is a documented intentional decision, do not flag it as a defect — label it **"by design (per `<source>`)"** and, at most, surface it as a one-line assumption to confirm with the owner.
+
 ## Modes
 
 | Mode | When | Triggered by |
@@ -31,6 +41,42 @@ If the mode is ambiguous, infer from whether code already exists for the thing i
 ## Roster: core + conditional specialists
 
 A small **core** always runs (the essential tensions). **Specialists** are convened only when the change touches their domain — this keeps coverage complete without flooding the council with "not my area" noise. Typical run = 5–7 advisors. Triage tables are in [Step 2](#step-2-triage--convene-parallel-sub-agents).
+
+---
+
+## Model assignment (capability + diversity)
+
+Two reasons never to run the whole council on one model:
+
+1. **Diversity** — advisors on the *same* model share the *same* blind spots. The council's value is **independent** judgment, so spread roles across model **families** (e.g. GPT/Codex, Claude, Gemini). Six personas on one model is one opinion wearing six hats.
+2. **Capability** — reasoning-heavy lenses (Bug Hunter, Security, Architect, Performance/Reliability, Long-term Engineer) reward "thinking" models; lighter lenses (Maintainability, PM, UX) can use faster/cheaper ones.
+
+**Tiering — when to spend (decide this in Step 1):**
+- **Risky / production-facing gate** — enabling a feature, auth/security/PII, concurrency/locking, money, data migrations, anything where a miss ships to prod → use the **diverse roster** below.
+- **Trivial / low-stakes** — a single fast model for every advisor is fine. Don't pay for the heavy roster.
+
+**Recommended roster** (pass via the `model` param on each `Task` call). Slugs below are *examples* — substitute the strongest currently-available equivalent per family; **if a slug isn't available in this environment, fall back to the session/default model rather than guessing**, and never invent a model name.
+
+REVIEW mode:
+
+| Reviewer | Suggested model | Why |
+|----------|-----------------|-----|
+| Bug Hunter | `gpt-5.3-codex-high` | best at logic/edge-case/concurrency hunting in code |
+| Security Reviewer | `claude-opus-4-8-thinking-high` | careful adversarial threat reasoning |
+| Performance / Reliability | `gemini-3.1-pro` | different family → de-correlates misses |
+| API / Backward-Compat | `claude-4.6-sonnet-medium-thinking` | contract reasoning, mid-cost |
+| Test Reviewer | `gpt-5.5-medium` | solid, cheaper |
+| Maintainability | `composer-2.5-fast` | low-stakes lens; keep it fast/cheap |
+| Standards & Compliance | `gpt-5.4-medium` | rule-matching against docs; mid-cost, doesn't need a heavy reasoner |
+| Data / DBA | `gpt-5.4-medium` | schema/migration reasoning, mid-cost |
+
+PLAN mode (analogous): Architect, Security/Threat, Performance/Scalability, SRE/Reliability, Dev Lead B (Long-term) → **thinking** models; PM, Dev Lead A (Pragmatist), UX, QA → **mid/fast** models.
+
+**Peer review (Step 3):** give each peer reviewer a model from a **different family** than the advisor whose claim carries the most weight — never let one family both *write* and *grade* the same dominant finding.
+
+**Chairman (Step 4):** the parent/session model (you). Keep synthesis in one place.
+
+> For Java/Spring REVIEW the `java-code-review` skill owns its own pipeline; this roster applies to the non-Java reviewers and to PLAN mode.
 
 ---
 
@@ -65,17 +111,43 @@ Each is a thinking lens, not a job title, chosen to create deliberate tension so
 **Core (always):**
 
 1. **Bug Hunter** — Logic and edge cases: null/None/undefined, off-by-one, boundary inputs, empty collections, concurrency/races, resource leaks, swallowed/incorrect error handling. Assumes a bug exists and hunts it.
-2. **Maintainability Reviewer** — Readability, naming, SOLID, duplication, dead code, complexity, adherence to project conventions.
+2. **Maintainability Reviewer** — Readability, naming, SOLID, duplication, dead code, complexity, general code quality.
 3. **Test Reviewer** — Coverage of the **changed lines**, missing edge-case and failure-path tests, brittle/flaky tests, tests asserting the wrong thing.
+4. **Standards & Compliance Reviewer** — Holds the change to the project's **documented** rules and contracts (`.cursor/rules/*.mdc`, `AGENTS.md`/`CLAUDE.md`, `README`, `.gitignore`/config intent comments): inline imports, naming, layering/structure, hardcoded or environment-specific values that belong in config, secret handling, commit hygiene. Judges against the **written** rule and flags only a genuine break — and per "The second rule", treats documented intentional exceptions as compliant, never as violations. (Complements Maintainability: that lens judges quality/readability; this one judges conformance to stated rules.)
 
 **Specialists (convened by triage):**
 
-4. **Security Reviewer** — Injection (SQL/command/template), authz/authn gaps, secrets in code/logs, input validation, sensitive data in logs, unsafe deserialization, weak crypto, SSRF/path traversal.
-5. **Performance Reviewer** — N+1 queries, unbounded loops/allocations, blocking I/O on hot paths, missing pagination, inefficient queries, missing/incorrect caching, chatty network calls.
-6. **API Contract & Backward-Compatibility Reviewer** — Will this break consumers? Public API/DTO/event-schema changes, removed/renamed fields, default/nullability changes, versioning.
-7. **Data / DBA Reviewer** — Migration safety and reversibility, backward-compatible schema changes, missing indexes, lock/locking risk on large tables, data integrity.
+5. **Security Reviewer** — Injection (SQL/command/template), authz/authn gaps, secrets in code/logs, input validation, sensitive data in logs, unsafe deserialization, weak crypto, SSRF/path traversal.
+6. **Performance Reviewer** — N+1 queries, unbounded loops/allocations, blocking I/O on hot paths, missing pagination, inefficient queries, missing/incorrect caching, chatty network calls.
+7. **API Contract & Backward-Compatibility Reviewer** — Will this break consumers? Public API/DTO/event-schema changes, removed/renamed fields, default/nullability changes, versioning.
+8. **Data / DBA Reviewer** — Migration safety and reversibility, backward-compatible schema changes, missing indexes, lock/locking risk on large tables, data integrity.
 
 > **Scope rule (REVIEW):** flag issues only on lines that were **changed** (use `git diff`). Full files are context only; don't flag pre-existing untouched code.
+
+---
+
+## Execution backend: the `council` CLI (preferred when installed)
+
+If the standalone `council` runner is installed (the `council` command resolves on PATH), use it as the execution backend for dispatch, peer review, and Chairman synthesis. It runs each persona as its **own agent on a different model** — the per-persona model diversity the internal `Task` tool can't guarantee — keeps every advisor reading the real repo (so findings cite `file:line`), and meters spend for budget control.
+
+Flow when the CLI is present:
+
+1. You still do **Step 1 (frame)** and the **Step 2 triage** (decide mode, stakes tier, and which personas to convene).
+2. Write the framed brief to a file, then invoke:
+   `council run --mode <plan|review> --stakes <standard|risky> --cwd <repo> --brief-file <brief> [--roster k1,k2,...]`
+   - Map triage to `--stakes risky` for production-facing gates (full diverse roster + peer review) or `--stakes standard` for everyday changes (core roster, cheaper models, no peer review). Pass `--roster` (persona keys) to force a specific set; omit it to let the tier choose.
+3. The CLI performs **Step 3 (anonymized peer review)** and **Step 4 (Chairman synthesis)** internally and returns the finished verdict markdown.
+4. Present that verdict for **Step 5**. You may tighten presentation, but the CLI's evidence-grounded synthesis is authoritative.
+
+Run `council models` once to confirm Claude/Gemini are available for your key; the CLI auto-falls-back any unavailable model to a configured default. Use `council usage` to watch spend against the soft budget ceiling, and `council backends` to see which execution backends are configured and whether their credentials are set.
+
+**Backends (per-persona model execution).** By default every persona runs on the `cursor` backend — a grounded local agent that reads the repo and cites `file:line`. The CLI also supports provider backends (`openai`, which also covers AutoX/OpenAI-compatible gateways, plus `anthropic` and `google`) selectable per persona, so a single council can run a hybrid (e.g. GPT personas on AutoX, Claude/Gemini on Cursor). Provider backends can't browse the repo, so the tool injects a repo-context snapshot into their prompts. Keep high-value lenses on `cursor` when you can.
+
+**Missing credentials.** Credentials come from environment variables only — never write a key into a file or the repo. If the CLI reports that a backend is "not ready" / a key is missing, **ask the user for the key and set it in the environment** (e.g. `CURSOR_API_KEY`), then retry; the CLI run itself will also prompt for a missing key when run interactively.
+
+For setup, prerequisites, backends, and the AutoX hybrid, see the runner's `GUIDE.md` (in the `dev-council-runner` project, mirrored here under `runner/`).
+
+If the `council` command is **not** installed, fall back to the internal `Task`-based flow described below.
 
 ---
 
@@ -98,16 +170,20 @@ Spend ~30s gathering the context that turns generic advice into specific, ground
 - Read files the user referenced/attached and the code directly involved.
 - PLAN: scan for `AGENTS.md`/`CLAUDE.md`/`README`, the existing modules the change touches, and any design docs.
 - REVIEW: get the diff — `git diff --name-only` then `git diff` for changed files (committed vs base branch **and** uncommitted). Read full content of complex changed files for context.
+- **Always: load the project's rules + intentional decisions** — `.cursor/rules/*.mdc`, `AGENTS.md`/`CLAUDE.md`, `README`, plus any `.gitignore`/config comments marking deliberate/local-only choices. These are required inputs to the brief (see "The second rule").
 
 Then write a **neutral brief** all advisors receive. Don't inject your own opinion. Include:
 1. The core decision (PLAN) or what the change does (REVIEW)
 2. Key context from user + workspace (stack, constraints, consumers, conventions)
 3. What's at stake / why it matters
 4. Relevant code locations (paths, key functions, contracts)
+5. **Project rules & intentional decisions** (with source) — the documented conventions advisors must hold the code to, AND the by-design choices they must NOT flag as defects (e.g. *"`tests/` is gitignored on purpose — manual verification per team contract"*).
 
 If too vague to frame ("council my service"), ask exactly one clarifying question, then proceed.
 
 ### Step 2: Triage + convene (parallel sub-agents)
+
+> If the `council` CLI is installed, do the triage below to decide the roster and stakes, then hand off execution to it (see "Execution backend" above) instead of spawning `Task` sub-agents. The rest of this step (and Steps 3-4) is the fallback flow for when the CLI is absent.
 
 Run the **core** advisors for the mode. Then add each **specialist** whose trigger fires:
 
@@ -135,7 +211,8 @@ Spawn all selected advisors **simultaneously in ONE message** (multiple `Task` c
 
 - `subagent_type`: `generalPurpose` (or `code-reviewer` for REVIEW reviewers)
 - `readonly`: `true`
-- Tell the user which advisors convened and which were skipped (and why), e.g. `"Council: PM, Architect, 2 Dev Leads, Security, Data (skipped UX/Perf — no UI or hot path)."`
+- `model`: assign per the [Model assignment](#model-assignment-capability--diversity) section — the diverse roster for risky/production-facing gates, a single fast model for trivial reviews. If a recommended slug isn't available, omit `model` (inherit the session default) rather than guessing.
+- Tell the user which advisors convened, which were skipped (and why), **and which model each ran on**, e.g. `"Council: Bug Hunter (codex-high), Security (opus-thinking), Perf (gemini-pro), Test (gpt-5.5), Maintainability (composer), Standards & Compliance (gpt-5.4) — skipped Data (no schema change)."`
 
 **Sub-agent prompt template:**
 ```
@@ -155,6 +232,7 @@ Rules:
 - Back every claim with evidence: cite path:line or a specific function/contract.
 - Lean fully into your lens. Do NOT hedge or try to be balanced — other advisors cover the angles you don't. Synthesis comes later.
 - If this change genuinely doesn't touch your domain, say so in ONE line and stop. Don't manufacture concerns.
+- If a candidate finding is a documented intentional decision (see the brief's "Project rules & intentional decisions" section), do NOT flag it as a defect — label it "by design (per `<source>`)" and move on.
 - 150–300 words. No preamble. Be concrete and specific to THIS code/decision.
 {REVIEW ONLY: Flag issues only on changed lines. Label each finding Critical / Major / Minor.}
 ```

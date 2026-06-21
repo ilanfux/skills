@@ -1,0 +1,38 @@
+# Execution backends. Each persona's `backend:` (in personas.yaml) refers to a
+# key here. The default is `cursor` (grounded local agents that browse the repo).
+#
+# CREDENTIALS ARE READ FROM ENVIRONMENT VARIABLES ONLY. Never put a key in this
+# file or any file in the repo. Set the named env var in your shell/user profile.
+#
+# `type` selects the implementation (cursor | openai | anthropic | google). It
+# defaults to the backend's own name, so you only set it when aliasing (e.g. an
+# `autox` backend of type `openai`).
+backends:
+  # Grounded local agents via the Cursor SDK. Recommended default: one key gives
+  # you GPT/Codex + Claude + Gemini, and each persona reads the real repo.
+  cursor:
+    type: cursor
+    api_key_env: CURSOR_API_KEY
+
+  # OpenAI (or any OpenAI-compatible endpoint). Provider backends are plain chat
+  # calls: they receive injected repo context instead of browsing the repo.
+  openai:
+    type: openai
+    api_key_env: OPENAI_API_KEY
+    base_url_env: OPENAI_BASE_URL   # optional; leave the env unset for api.openai.com
+
+  anthropic:
+    type: anthropic
+    api_key_env: ANTHROPIC_API_KEY
+
+  google:
+    type: google
+    api_key_env: GOOGLE_API_KEY     # GEMINI_API_KEY is also accepted
+
+  # Example alias: Amdocs AutoX is OpenAI-compatible (GPT models only). Set
+  # AUTOX_API_KEY and AUTOX_BASE_URL in your environment, then point GPT personas
+  # at `backend: autox` to spend AutoX quota while keeping Claude/Gemini on Cursor.
+  autox:
+    type: openai
+    api_key_env: AUTOX_API_KEY
+    base_url_env: AUTOX_BASE_URL

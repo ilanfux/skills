@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dev-council-runner"
+version = "0.2.0"
+description = "Standalone, host-agnostic multi-model Dev Council runner with pluggable backends (Cursor SDK, OpenAI/AutoX, Anthropic, Google)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "ILANF" }]
+keywords = ["cursor", "agents", "code-review", "dev-council", "multi-model"]
+dependencies = [
+    "cursor-sdk>=0.1",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+# Provider backends are optional: install only the ones you'll use. The base
+# install (Cursor SDK backend) needs none of these.
+openai = ["openai>=1.40"]
+anthropic = ["anthropic>=0.39"]
+google = ["google-genai>=0.3"]
+all = ["openai>=1.40", "anthropic>=0.39", "google-genai>=0.3"]
+# Installed only where you want to forward metering rows into the
+# digital-bytes-agent database. Not required for normal use.
+fit = []
+
+[project.scripts]
+council = "council.cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+council = ["defaults/*.yaml"]
