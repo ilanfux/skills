@@ -55,7 +55,9 @@ Two reasons never to run the whole council on one model:
 - **Risky / production-facing gate** — enabling a feature, auth/security/PII, concurrency/locking, money, data migrations, anything where a miss ships to prod → use the **diverse roster** below.
 - **Trivial / low-stakes** — a single fast model for every advisor is fine. Don't pay for the heavy roster.
 
-**Recommended roster** (pass via the `model` param on each `Task` call). Slugs below are *examples* — substitute the strongest currently-available equivalent per family; **if a slug isn't available in this environment, fall back to the session/default model rather than guessing**, and never invent a model name.
+> **These assignments are realized reliably only by the `council` CLI.** The internal `Task` flow cannot guarantee per-persona models — it commonly runs every advisor on the session model regardless of the `model` arg — so when the CLI is installed (Step 0) it is the required path. The table below maps to the CLI's `personas.yaml`; for the `Task` fallback, treat it as best-effort.
+
+**Recommended roster** (in the `Task` fallback, pass via the `model` param on each `Task` call). Slugs below are *examples* — substitute the strongest currently-available equivalent per family; **if a slug isn't available in this environment, fall back to the session/default model rather than guessing**, and never invent a model name.
 
 REVIEW mode:
 
@@ -128,7 +130,7 @@ Each is a thinking lens, not a job title, chosen to create deliberate tension so
 
 ## Execution backend: the `council` CLI (preferred when installed)
 
-If the standalone `council` runner is installed, use it as the execution backend for dispatch, peer review, and Chairman synthesis. It runs each persona as its **own agent on a different model** — the per-persona model diversity the internal `Task` tool can't guarantee — keeps every advisor reading the real repo (so findings cite `file:line`), and meters spend for budget control.
+If the standalone `council` runner is installed, you **MUST** use it as the execution backend for dispatch, peer review, and Chairman synthesis — not the internal `Task` tool. It runs each persona as its **own agent on a different model** — the per-persona model diversity the internal `Task` tool can't guarantee (the `Task` tool tends to run every advisor on the session model) — keeps every advisor reading the real repo (so findings cite `file:line`), and meters spend for budget control.
 
 **Detect it (do this first, do NOT rely only on the bare `council` command):** run `python -m council --version`. If that prints a version, the runner is installed — invoke it with **`python -m council ...`**. The bare `council` command often fails inside an editor session even when installed, because the editor process captured a stale PATH before the CLI was added (a restart would fix PATH, but `python -m council` works without one). Only fall back to the internal `Task` flow if `python -m council --version` itself fails (non-zero exit / `No module named council`).
 
@@ -171,12 +173,23 @@ If `python -m council --version` fails (the runner is genuinely not installed), 
 Copy and track this checklist:
 
 ```
+- [ ] Step 0: Choose execution backend — run `python -m council --version` FIRST
 - [ ] Step 1: Frame (gather context + write the neutral brief)
 - [ ] Step 2: Triage + convene advisors (parallel)
 - [ ] Step 3: Peer review (anonymized, parallel)
 - [ ] Step 4: Chairman synthesis
 - [ ] Step 5: Present verdict in chat
 ```
+
+### Step 0: Choose the execution backend (MANDATORY — do this before anything else)
+
+**Run `python -m council --version` as your very first action.** This is not optional and not a side-note.
+
+- **If it prints a version** (e.g. `council 0.2.0`) → the runner is installed, and you **MUST** execute the council through the CLI (`python -m council run ...`, see "Execution backend" above). In this case you **MUST NOT** spawn `Task` sub-agents to run advisors. The internal `Task` flow (Steps 2–4 below) is a **fallback only**.
+  - **Why this is a hard rule:** the `Task` tool cannot guarantee a per-persona model — in practice it runs *every* advisor on the session model (e.g. all on "Composer 2.5 Fast") even when you pass a `model` arg and label them otherwise. That recreates the exact "one model wearing six hats" problem this skill exists to eliminate. Labels in your message are not proof; only the CLI actually runs Codex/Opus/Gemini side by side.
+- **If it fails** (non-zero exit / `No module named council`) → only then fall back to the internal `Task` flow in Steps 2–4.
+
+**State which path you took, with proof.** Before convening, tell the user one line: either `"council CLI detected (vX) → running multi-model via the CLI"` or `"council CLI not found (ran \`python -m council --version\` → <error>) → falling back to internal single-model Task flow"`. Never claim diverse models while running the `Task` flow.
 
 ### Step 1: Frame the question (with context)
 
@@ -198,7 +211,7 @@ If too vague to frame ("council my service"), ask exactly one clarifying questio
 
 ### Step 2: Triage + convene (parallel sub-agents)
 
-> If the `council` CLI is installed (detect with `python -m council --version`), do the triage below to decide the roster and stakes, then hand off execution to it via `python -m council run ...` (see "Execution backend" above) instead of spawning `Task` sub-agents. The rest of this step (and Steps 3-4) is the fallback flow for when the CLI is absent.
+> **STOP — did you do Step 0?** If `python -m council --version` succeeded, do the triage below only to decide the roster and stakes, then **hand off execution to the CLI** via `python -m council run ...` (see "Execution backend" above). **Do not spawn `Task` sub-agents for advisors in that case** — doing so silently collapses the council onto one model. The `Task` instructions in the rest of this step (and Steps 3–4) apply **only** when the CLI is genuinely absent.
 
 Run the **core** advisors for the mode. Then add each **specialist** whose trigger fires:
 
