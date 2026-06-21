@@ -43,6 +43,24 @@ review:
       Logic and edge cases: null/None/undefined, off-by-one, boundary inputs,
       empty collections, concurrency/races, resource leaks, swallowed or
       incorrect error handling. Assume a bug exists and hunt it.
+  # Second, independent bug hunt on a DIFFERENT family (Claude Opus vs the Codex
+  # hunter above) to de-correlate blind spots on the highest-value lens. core:false
+  # so it joins only the full/risky roster, not everyday `standard` runs.
+  bug_hunter_deep:
+    title: Bug Hunter - Deep Reasoning
+    core: false
+    capability: heavy
+    model: claude-opus-4-8
+    family: anthropic
+    model_params:
+      thinking: "true"
+      effort: xhigh
+    lens: >-
+      An independent second pass at correctness, on a different model family.
+      Reason hard about concurrency and ordering (races, double-execution,
+      lost updates, idempotency), state-machine and error-path correctness,
+      and subtle logic/edge cases the first hunter may share a blind spot on.
+      Assume a bug exists and hunt it; converge or dissent on your own evidence.
   maintainability:
     title: Maintainability Reviewer
     core: true
