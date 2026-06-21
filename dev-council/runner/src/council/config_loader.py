@@ -20,6 +20,7 @@ try:  # Python 3.10+: importlib.resources.files
 except Exception:  # pragma: no cover
     _resource_files = None  # type: ignore
 
+from council.env import credential_env_names, hydrate_persistent_env
 from council.input import PersonaSpec
 
 USER_CONFIG_DIR = Path(os.path.expanduser("~")) / ".dev-council"
@@ -129,7 +130,7 @@ def load_config() -> Config:
             downgrade_model=(str(spec["downgrade_model"]).strip() if spec.get("downgrade_model") else None),
         )
 
-    return Config(
+    config = Config(
         default_model=str(personas_raw.get("default_model", "gpt-5.5")).strip(),
         chairman_model=str(personas_raw.get("chairman_model", "gpt-5.5")).strip(),
         peer_review_pool={str(k).lower(): str(v) for k, v in (personas_raw.get("peer_review_pool") or {}).items()},
@@ -145,6 +146,13 @@ def load_config() -> Config:
         backends={str(k).lower(): dict(v or {}) for k, v in (backends_raw.get("backends") or {}).items()},
         budget=dict(tiers_raw.get("budget") or {}),
     )
+
+    # Self-heal stale editor environments (Windows): pull any missing credential
+    # env vars back from the persisted registry so a key set after the editor
+    # launched is still seen without a full restart.
+    hydrate_persistent_env(credential_env_names(config.backends))
+
+    return config
 
 
 def resolve_models(config: Config, available: List[str]) -> Config:

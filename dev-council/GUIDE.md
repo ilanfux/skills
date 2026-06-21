@@ -273,6 +273,7 @@ catalog.
 | `council: command not found` | The Scripts dir isn't on PATH. Use `python -m council`, or add the dir pip printed at install. |
 | `... model list came back empty` | Cursor discovery failed (network/key). Run `council models`; check `CURSOR_API_KEY`. |
 | `one or more configured backends are not ready` | A backend in use is missing its package or key. Run `council backends` to see which, then install the extra / set the env var. |
+| Key is set but reported **missing** (e.g. `CURSOR_API_KEY` not set) | Stale editor environment: Cursor captured its env at launch, so a key you set afterward isn't in the spawned process. On Windows the CLI now self-heals by reading the persisted value from the registry; if it still shows missing, **fully quit and reopen Cursor** (Reload Window is not enough), or set it for the current shell: `$env:CURSOR_API_KEY = [Environment]::GetEnvironmentVariable('CURSOR_API_KEY','User')`. |
 | A single persona shows `status=error` | Captured and reported; the council still produces a verdict. Check the `error` field in `~/.dev-council/usage.jsonl`. |
 | First command is slow (~10–20s) | The Cursor SDK bridge cold-starts. Subsequent calls in the same session are faster. |
 | Provider persona gives weak citations | Expected: provider backends can't browse the repo. Keep high-value lenses on `cursor`. |

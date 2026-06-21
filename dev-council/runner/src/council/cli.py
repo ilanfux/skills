@@ -22,12 +22,16 @@ from council import __version__
 from council.backends import BackendError, BackendRegistry
 from council.config_loader import load_config, resolve_models, select_personas, validate_model_params
 from council.input import CouncilInput
+from council.env import hydrate_persistent_env
 from council.metering import USAGE_LOG_PATH, summarize
 from council.runner import CouncilPlan, plan_council, run_council
 from council.sdk_client import SdkUnavailableError, discover_models
 
 
 def main(argv: Optional[List[str]] = None) -> int:
+    # Recover credential env vars an editor may have launched without (Windows);
+    # safe + idempotent on every platform.
+    hydrate_persistent_env()
     parser = _build_parser()
     args = parser.parse_args(argv)
     if not getattr(args, "command", None):

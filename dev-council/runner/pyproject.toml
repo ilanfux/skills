@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dev-council-runner"
-version = "0.2.0"
+version = "0.2.1"
 description = "Standalone, host-agnostic multi-model Dev Council runner with pluggable backends (Cursor SDK, OpenAI/AutoX, Anthropic, Google)."
 readme = "README.md"
 requires-python = ">=3.10"
