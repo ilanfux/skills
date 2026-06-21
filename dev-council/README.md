@@ -120,6 +120,46 @@ frame the brief → dispatch advisors in parallel (each on its own model, readin
 Stakes tiers control cost: `standard` runs a lean core roster; `risky` convenes the
 full diverse roster (including a second, cross-family Bug Hunter) plus peer review.
 
+## What the output looks like
+
+A REVIEW run returns a single, scannable verdict. Findings are tied to `file:line`,
+disagreements between models are surfaced (not averaged away), and peer review
+catches what every advisor missed. Example (abridged):
+
+```markdown
+## Council Verdict (Review): add Redis cache to /auth/token
+
+_Convened: Bug Hunter (gpt-5.3-codex), Bug Hunter–Deep (claude-opus-4-8),
+Security (claude-opus-4-8), Performance (gemini-3.1-pro), API-Compat
+(claude-sonnet-4-6), Test (gpt-5.5), Maintainability (composer-2.5) ·
+skipped: Data/DBA (no schema change)_
+
+### 🔴 Must fix before merge (blocking)
+- Cached tokens are never invalidated on logout — `auth/cache.py:42` sets a 15-min
+  TTL but `logout()` (`auth/service.py:88`) doesn't evict, so a revoked token keeps
+  working until expiry. (Security + Bug Hunter–Deep, independently.)
+- Cache key is the raw bearer token — `auth/cache.py:31`. A Redis read exposes live
+  credentials; key should be a salted hash. (Security)
+
+### 🟡 Should fix (non-blocking)
+- No negative-result caching → every invalid token still hits the DB (`:55`). (Performance)
+- New branch in `validate()` is untested — `tests/test_auth.py` unchanged. (Test)
+
+### Where reviewers disagreed
+Performance argued for a 60-min TTL; Security wanted ≤5 min. Chairman sides with
+Security — for an auth path, staleness is a vulnerability, and the DB read is cheap.
+
+### What everyone missed
+Peer review flagged a thundering-herd risk: when a hot token expires, concurrent
+requests all miss and stampede the DB. Add single-flight / jittered TTL.
+
+### Verdict
+🛠️ FIX-THEN-SHIP — sound idea, but the logout-invalidation gap is a real auth bug.
+```
+
+A PLAN run produces the analogous design verdict (agreements, clashes, blind
+spots, a decisive recommendation, and the one thing to do first).
+
 ## Requirements
 
 - Python 3.10+ (for the runner)
